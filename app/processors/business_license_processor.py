@@ -3,6 +3,10 @@ from app.schemas.business_license import BusinessLicense
 from app.core.llm_provider import LLMMessage
 from typing import List
 
+
+import logging
+logger = logging.getLogger("document-processing-api")
+
 class BusinessLicenseProcessor(DocumentProcessor[BusinessLicense]):
     async def process_document(self, text: str, keywords: List[str], language: str) -> BusinessLicense:
         # Step 1: Clean text
@@ -19,6 +23,8 @@ class BusinessLicenseProcessor(DocumentProcessor[BusinessLicense]):
             )
         ]
         cleaned_text = await self._generate_response(cleanup_messages)
+
+        logger.info(f"Cleaned text: {cleaned_text}")
 
         # Step 2: Extract information
         schema = BusinessLicense.model_json_schema()
@@ -49,6 +55,8 @@ class BusinessLicenseProcessor(DocumentProcessor[BusinessLicense]):
             extraction_messages,
             schema
         )
+
+        logger.info(f"Extracted data: {extracted_data}")
         
         # Step 3: Validate
         validation_messages = [
@@ -73,6 +81,8 @@ class BusinessLicenseProcessor(DocumentProcessor[BusinessLicense]):
             )
         ]
         validation_result = await self._generate_response(validation_messages)
+
+        logger.info(f"Validation result: {validation_result}")
         
         if "ISSUE:" in validation_result:
             raise ValueError(f"Validation failed: {validation_result}")

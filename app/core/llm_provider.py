@@ -54,15 +54,21 @@ class GeminiProvider(LLMProvider):
     async def generate(self, messages: List[LLMMessage], config: LLMConfig) -> str:
         model = self.genai.GenerativeModel(config.model_name)
         chat = model.start_chat()
-        for msg in messages:
-            if msg.role == "user":
-                response = await chat.send_message_async(msg.content)
-        return response.text
+        full_prompt = "\n".join(f"{msg.role.upper()}: {msg.content}" for msg in messages)
+        response = await chat.send_message_async(full_prompt)
+        return response.text.strip()
 
     async def generate_with_json_output(self, messages: List[LLMMessage], json_schema: Dict, config: LLMConfig) -> Dict:
-        messages.append(LLMMessage(
+        # Insert the JSON directive at the beginning so that it stays in context.
+        json_instruction = LLMMessage(
             role="system",
             content=f"You must respond with valid JSON matching this schema: {json_schema}"
-        ))
-        response = await self.generate(messages, config)
-        return json.loads(response) 
+        )
+        messages.insert(0, json_instruction)
+        response_text = await self.generate(messages, config)
+        if not response_text:
+            raise ValueError("Empty response received from Gemini.")
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            raise ValueError(f"Invalid JSON response from Gemini: {response_text}") 
